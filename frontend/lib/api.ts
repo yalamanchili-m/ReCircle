@@ -51,3 +51,23 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
   return response.json() as Promise<T>;
 }
+
+export async function apiDownloadFile(
+  path: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers });
+  if (!response.ok) {
+    throw new ApiError(response.status, `Request failed: ${response.status} ${response.statusText}`);
+  }
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const match = /filename="?([^";]+)"?/.exec(disposition);
+  return {
+    blob: await response.blob(),
+    filename: match?.[1] ?? "recircle_export.csv",
+  };
+}

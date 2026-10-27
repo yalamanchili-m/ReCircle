@@ -12,15 +12,41 @@ Usage:
 """
 
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.db.session import SessionLocal
-from app.models import MaterialRequirement, Organization, User, WasteListing
+from app.models import (
+    MaterialRequirement,
+    Offer,
+    Organization,
+    RecoveryRecord,
+    Transaction,
+    User,
+    WasteListing,
+)
+from app.schemas.trade import OfferCreate, RecoveryRecordCreate
+from app.services import trade as trade_service
 
 DEMO_PASSWORD = "ReCircleDemo123!"
+
+DEMO_TRADE = {
+    "listing_title": "Cardboard Trade Fixture (SYNTHETIC)",
+    "requirement_title": "Clean Cardboard Supply",
+    "quantity": Decimal("500.000"),
+    "price_per_unit": Decimal("10.00"),
+    "message": "SYNTHETIC demo offer (seed fixture)",
+    "recovered_quantity": Decimal("500.000"),
+    "unit": "kg",
+    "recovery_route": "recycle",
+    "recovery_notes": (
+        "SYNTHETIC demo recovery recorded by the seed script; verification "
+        "performed by the demo admin to exercise the verified metric state."
+    ),
+}
 
 DEMO_ORGANIZATIONS = [
     {
@@ -168,6 +194,28 @@ DEMO_LISTINGS = [
         "available_from": date(2026, 11, 2),
         "status": "active",
     },
+    {
+        # Dedicated fixture for the demo trade: the seeded offer -> accept
+        # flow moves it to 'matched', so it never occupies a marketplace
+        # slot and cannot break marketplace fixtures or cardinalities.
+        "title": "Cardboard Trade Fixture (SYNTHETIC)",
+        "category": "paper_cardboard",
+        "material_name": "Corrugated cardboard bales",
+        "description": (
+            "SYNTHETIC demo listing reserved for the end-to-end trade fixture "
+            "(offer -> transaction -> verified recovery record)."
+        ),
+        "composition": "Old corrugated containers",
+        "grade": "OCC Grade 1",
+        "condition": "Dry, baled",
+        "contamination_notes": None,
+        "quantity": 600.000,
+        "unit": "kg",
+        "price_per_unit": 9.00,
+        "city": "Mumbai",
+        "region": "Maharashtra",
+        "status": "active",
+    },
 ]
 
 DEMO_REQUIREMENTS = [
@@ -279,6 +327,58 @@ def _get_or_create_requirement(
     return requirement
 
 
+def _seed_demo_trade(
+    db: Session,
+    listing: WasteListing,
+    requirement: MaterialRequirement,
+    buyer_user: User,
+    generator_user: User,
+    admin_user: User,
+) -> str:
+    """Create the SYNTHETIC offer -> transaction -> verified recovery fixture.
+
+    Idempotent by stable marker: the demo offer message identifies the
+    fixture, so reruns never create duplicate transactions or recovery
+    records.
+    """
+    existing = db.scalar(
+        select(Offer.id).where(
+            Offer.listing_id == listing.id,
+            Offer.requirement_id == requirement.id,
+            Offer.message == DEMO_TRADE["message"],
+        )
+    )
+    if existing is not None:
+        return "already_present"
+
+    spec = DEMO_TRADE
+    offer = trade_service.create_offer(
+        db,
+        buyer_user,
+        OfferCreate(
+            listing_id=listing.id,
+            requirement_id=requirement.id,
+            quantity=spec["quantity"],
+            price_per_unit=spec["price_per_unit"],
+            message=spec["message"],
+        ),
+    )
+    transaction = trade_service.accept_offer(db, generator_user, offer.id)
+    recovery = trade_service.record_recovery(
+        db,
+        buyer_user,
+        transaction.id,
+        RecoveryRecordCreate(
+            recovered_quantity=spec["recovered_quantity"],
+            unit=spec["unit"],
+            recovery_route=spec["recovery_route"],
+            calculation_notes=spec["recovery_notes"],
+        ),
+    )
+    trade_service.verify_recovery(db, admin_user, recovery.id)
+    return "created"
+
+
 def seed(db: Session | None = None) -> dict:
     """Seed demo data idempotently. Returns counts of created records."""
     owns_session = db is None
@@ -304,6 +404,25 @@ def seed(db: Session | None = None) -> dict:
         for spec in DEMO_REQUIREMENTS:
             _get_or_create_requirement(db, spec, buyer_org, buyer_user)
 
+        admin_user = users["admin@recircle.local"]
+        trade_listing = db.scalar(
+            select(WasteListing).where(WasteListing.title == DEMO_TRADE["listing_title"])
+        )
+        trade_requirement = db.scalar(
+            select(MaterialRequirement).where(
+                MaterialRequirement.title == DEMO_TRADE["requirement_title"]
+            )
+        )
+        assert trade_listing is not None and trade_requirement is not None
+        trade_status = _seed_demo_trade(
+            db,
+            trade_listing,
+            trade_requirement,
+            buyer_user,
+            generator_user,
+            admin_user,
+        )
+
         db.commit()
 
         # Report table totals after seeding (deltas are zero on repeat runs).
@@ -313,6 +432,10 @@ def seed(db: Session | None = None) -> dict:
             "listings_total": db.scalar(select(func.count()).select_from(WasteListing)),
             "requirements_total": db.scalar(
                 select(func.count()).select_from(MaterialRequirement)
+            ),
+            "transactions_total": db.scalar(select(func.count()).select_from(Transaction)),
+            "recovery_records_total": db.scalar(
+                select(func.count()).select_from(RecoveryRecord)
             ),
         }
         return totals

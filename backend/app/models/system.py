@@ -80,3 +80,29 @@ class SymbiosisRun(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AnalyticsRun(Base):
+    """Run record for marketplace metrics and K-means clustering (Phase 11)."""
+
+    __tablename__ = "analytics_runs"
+    __table_args__ = (Index("idx_analytics_runs_kind", "run_kind", "status", "started_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    run_kind: Mapped[str] = mapped_column(String(40), nullable=False)  # marketplace_metrics | kmeans
+    status: Mapped[str] = mapped_column(String(20), nullable=False)  # success | failed
+    error: Mapped[str | None] = mapped_column(Text)
+    params: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    feature_schema: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    stats: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    sampling_summary: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    result_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    subjects: Mapped[str] = mapped_column(String(120), nullable=False)
+    runtime_ms: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
