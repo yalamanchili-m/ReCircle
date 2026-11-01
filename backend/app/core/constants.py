@@ -33,3 +33,20 @@ RECOVERY_ROUTES = (
 VERIFICATION_STATUSES = ("unverified", "verified")
 
 ROLES = ("generator", "buyer", "admin")
+
+REGULATION_ITEM_TYPES = ("regulation", "news")
+
+SUPPORTED_JURISDICTIONS = ("IN", "US", "EU", "GLOBAL")
+
+SUPPORTED_TOPICS = (
+    "waste-management",
+    "hazardous-waste",
+    "plastics",
+    "e-waste",
+    "epr",
+    "recycling",
+    "reporting",
+    "circular-economy",
+)
+
+SUMMARY_KINDS = ("source_excerpt", "ai_generated")

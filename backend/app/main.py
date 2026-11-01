@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import (
     ai,
     analytics,
+    assistant,
     auth,
     dashboard,
     esg,
@@ -15,6 +16,7 @@ from app.api.routes import (
     marketplace,
     organizations,
     pathways,
+    regulation,
     requirements,
     symbiosis,
     trade,
@@ -50,5 +52,7 @@ app.include_router(esg.router, prefix=settings.api_prefix, tags=["esg"])
 app.include_router(impact.router, prefix=settings.api_prefix, tags=["impact"])
 app.include_router(explain.router, prefix=settings.api_prefix, tags=["explain"])
 app.include_router(analytics.router, prefix=settings.api_prefix, tags=["analytics"])
+app.include_router(regulation.router, prefix=settings.api_prefix, tags=["regulation"])
+app.include_router(assistant.router, prefix=settings.api_prefix, tags=["assistant"])
 
 register_exception_handlers(app)

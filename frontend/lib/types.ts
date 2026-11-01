@@ -1,4 +1,4 @@
-export interface HealthResponse {
+﻿export interface HealthResponse {
   status: string;
   app?: string;
   env?: string;
@@ -628,4 +628,130 @@ export interface EsgDashboard {
   };
   records: EsgRecord[];
   limitations: string[];
+}
+
+export type RegulationItemType = "regulation" | "news";
+
+export interface RegulationSource {
+  key: string;
+  name: string;
+  kind: string;
+  jurisdiction: string;
+  homepage_url: string;
+  feed_url: string | null;
+  topics: string[];
+  terms_note: string;
+  enabled: boolean;
+  needs_setup: boolean;
+  last_fetched_at: string | null;
+  last_item_at: string | null;
+  stale: boolean;
+}
+
+export interface RegulationSourcesResponse {
+  registry_version: string;
+  supported_jurisdictions: string[];
+  supported_topics: string[];
+  stale_after_days: number;
+  sources: RegulationSource[];
+}
+
+export interface RegulationItem {
+  id: string;
+  source_key: string;
+  source_name: string;
+  homepage_url: string;
+  item_type: RegulationItemType;
+  title: string;
+  url: string;
+  issuer: string | null;
+  jurisdiction: string;
+  topics: string[];
+  summary: string | null;
+  summary_kind: string;
+  summary_label: string;
+  published_at: string | null;
+  fetched_at: string | null;
+  description?: string | null;
+}
+
+export interface RegulationItemsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  summary_labels: Record<string, string>;
+  disclaimers: string[];
+  items: RegulationItem[];
+}
+
+export interface RegulationRefreshSourceStat {
+  source: string;
+  inserted: number;
+  updated: number;
+  unchanged: number;
+  failed: string | null;
+}
+
+export interface RegulationRefreshResponse {
+  status: "success" | "failed";
+  run_id: string;
+  runtime_ms: number;
+  totals: { inserted: number; updated: number; unchanged: number };
+  stats: {
+
+    sources: RegulationRefreshSourceStat[];
+    failed_sources: number;
+    source_count: number;
+    note: string | null;
+  };
+  disclaimers: string[];
+}
+
+export interface AssistantCitation {
+  n: number;
+  evidence_key: string;
+  kind: string;
+  title: string;
+  excerpt: string;
+  url: string | null;
+  source_label: string | null;
+  record_id: string | null;
+  untrusted: boolean;
+}
+
+export type AssistantMode = "generated" | "retrieve_only" | "abstained";
+
+export interface AssistantAskResponse {
+  run_id: string;
+  mode: AssistantMode;
+  answer: string | null;
+  citations: AssistantCitation[];
+  retrieval_stats: {
+    top_scores: { evidence_key: string; score: number; kind: string }[];
+    retrieval_version: string;
+  };
+  caveats: string[];
+  versions: Record<string, string | null>;
+  runtime_ms: number;
+  generated_at: string;
+}
+
+export interface AssistantSourcesResponse {
+  allowed_sources: string[];
+  platform_chunk_counts: Record<string, number>;
+  caveats: string[];
+}
+
+export interface AssistantEvaluation {
+  evaluation_version: string;
+  case_count: number;
+  passed: number;
+  cases: {
+    question: string;
+    note: string;
+    passed: boolean;
+    top_matches: { evidence_key: string; kind: string; score: number }[];
+  }[];
+  limitations: string;
+  real_data_metrics: null;
 }

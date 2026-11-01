@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
 
+    # Regulation-news aggregation fetches only keyless public feeds. LLM story
+    # summaries are strictly opt-in; without them items carry labeled
+    # source-excerpt summaries and everything works offline.
+    regulation_llm_summaries_enabled: bool = False
+    regulation_fetch_timeout_seconds: int = 15
+    regulation_max_items_per_source: int = 25
+
 
 @lru_cache
 def get_settings() -> Settings:

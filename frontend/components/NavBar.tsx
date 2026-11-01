@@ -29,6 +29,8 @@ export default function NavBar() {
           { href: "/marketplace", label: "Marketplace" },
           { href: "/pathways", label: "Pathways" },
           { href: "/analytics", label: "Analytics" },
+          { href: "/regulation", label: "Regulation" },
+          { href: "/assistant", label: "Assistant" },
           { href: "/esg", label: "ESG" },
         ]
       : [
@@ -39,6 +41,8 @@ export default function NavBar() {
           { href: "/matches", label: "Matches" },
           { href: "/pathways", label: "Pathways" },
           { href: "/analytics", label: "Analytics" },
+          { href: "/regulation", label: "Regulation" },
+          { href: "/assistant", label: "Assistant" },
           { href: "/symbiosis", label: "Symbiosis" },
           { href: "/graph", label: "Graph" },
           { href: "/esg", label: "ESG" },

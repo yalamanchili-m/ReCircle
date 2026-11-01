@@ -1,6 +1,7 @@
 """Marketplace metrics + K-means analytics tests (blueprint Phase 11)."""
 
 import uuid
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -264,11 +265,12 @@ def test_time_series_only_with_multi_month_coverage():
     else:
         assert "coverage" in default_ts["reason"]
 
-    # Age a probe listing back to August so a multi-month series is supported
+    # Age a probe listing back to the previous month so a multi-month
+    # series is supported regardless of the current calendar date
     response = client.post(
         "/api/listings",
         json={
-            "title": "Analytics Probe Aged August",
+            "title": "Analytics Probe Aged Prior Month",
             "description": "Analytics probe listing (synthetic test).",
             "category": "glass",
             "quantity": "50.000",
@@ -282,22 +284,26 @@ def test_time_series_only_with_multi_month_coverage():
     listing_id = uuid.UUID(response.json()["id"])
     with SessionLocal() as db:
         listing = db.get(WasteListing, listing_id)
-        aged = listing.created_at.replace(month=8, day=15)
+        aged = listing.created_at.replace(
+            day=1, minute=0, hour=0, second=0, microsecond=0
+        ) - timedelta(days=1)
         listing.created_at = aged
         listing.updated_at = aged
         db.commit()
 
+    period_to = date.today().isoformat()
+    period_from = aged.replace(day=1).date().isoformat()
     wide = client.get(
-        "/api/analytics/marketplace?period_from=2026-08-01&period_to=2026-10-27",
+        f"/api/analytics/marketplace?period_from={period_from}&period_to={period_to}",
         headers=_auth(admin),
     ).json()
     ts = wide["metrics"]["time_series"]
     assert ts["available"] is True
     months = [row["month"] for row in ts["rows"]]
-    assert "2026-08" in months
+    assert aged.strftime("%Y-%m") in months
     assert len(months) >= analytics.TIME_SERIES_MIN_MONTHS
-    august = next(row for row in ts["rows"] if row["month"] == "2026-08")
-    assert august["listings_created"] >= 1
+    aged_row = next(row for row in ts["rows"] if row["month"] == aged.strftime("%Y-%m"))
+    assert aged_row["listings_created"] >= 1
 
 
 def test_metrics_filters_pathways_and_empty_states():
@@ -353,6 +359,18 @@ def test_export_csv_has_no_private_org_data_and_runs_are_audited():
             select(func.count()).select_from(AuditLog).where(AuditLog.action == "analytics.export")
         )
     assert audit_rows >= 1
+
+
+def test_industry_filter_explains_when_no_passport_coverage():
+    buyer = _login("buyer@recircle.local")
+    body = client.get(
+        "/api/analytics/marketplace?industry=Textiles&period_from=2000-01-01",
+        headers=_auth(buyer),
+    ).json()
+    assert body["metrics"]["listings"].get("active", 0) == 0
+    assert any(
+        "passports" in warning for warning in body["metrics"]["warnings"]
+    )
 
 
 def test_export_auth_and_recompute_admin_only():
