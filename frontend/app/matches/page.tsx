@@ -6,15 +6,77 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { apiFetch, ApiError } from "@/lib/api";
 import { useRequireAuth } from "@/lib/useRequireAuth";
-import type { MatchCandidate, MatchRunResponse, Requirement } from "@/lib/types";
+import type {
+  Explanation,
+  MatchCandidate,
+  MatchRunResponse,
+  Requirement,
+  StoredMatch,
+} from "@/lib/types";
 
 const CRITERION_LABELS: Record<string, string> = {
-  category: "Category (40)",
-  quantity: "Quantity (25)",
-  quality: "Quality (20)",
-  location: "Location (10)",
-  price: "Price (5)",
+  category: "Category",
+  quantity: "Quantity",
+  quality: "Quality",
+  location: "Location",
+  price: "Price",
+  material_fit: "Material fit (content-based)",
+  knn_score: "KNN score (weighted features)",
 };
+
+function ExplainPanel({ explanation }: { explanation: Explanation }) {
+  return (
+    <div className="explanation-panel">
+      <p className="muted small-note">
+        {explanation.subject_type} &middot; {explanation.subject_version} &middot;
+        method {explanation.method}
+      </p>
+      <ul className="contribution-list">
+        {explanation.contributions.map((contribution) => (
+          <li key={contribution.feature}>
+            <span className="contribution-feature">
+              {CRITERION_LABELS[contribution.feature] ?? contribution.feature}
+            </span>
+            <span className="contribution-bar" aria-hidden="true">
+              <span
+                className={
+                  contribution.direction === "decreased"
+                    ? "bar bar-negative"
+                    : "bar bar-positive"
+                }
+                style={{ width: `${Math.max(2, contribution.share_of_signal * 100)}%` }}
+              />
+            </span>
+            <span className="contribution-value">
+              {contribution.value}
+              {contribution.share_of_signal > 0
+                ? ` · ${(contribution.share_of_signal * 100).toFixed(1)}%`
+                : ""}
+            </span>
+            {contribution.detail && (
+              <span className="contribution-detail muted">{contribution.detail}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <details>
+        <summary>Caveats &amp; method notes</summary>
+        <ul>
+          {explanation.caveats.map((caveat) => (
+            <li key={caveat} className="muted">
+              {caveat}
+            </li>
+          ))}
+          <li className="muted">{explanation.causation_note}</li>
+        </ul>
+      </details>
+      <p className="muted small-note">
+        Schema {explanation.explanation_schema_version} — contributions describe
+        how the formula produced this result; they are not causal claims.
+      </p>
+    </div>
+  );
+}
 
 function MatchesContent() {
   const searchParams = useSearchParams();
@@ -24,6 +86,10 @@ function MatchesContent() {
   const [results, setResults] = useState<MatchCandidate[] | null>(null);
   const [persist, setPersist] = useState(false);
   const [persisted, setPersisted] = useState(false);
+  const [storedMap, setStoredMap] = useState<Record<string, string>>({});
+  const [explanations, setExplanations] = useState<Record<string, Explanation>>({});
+  const [openExplain, setOpenExplain] = useState<Record<string, boolean>>({});
+  const [explainBusy, setExplainBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -51,6 +117,22 @@ function MatchesContent() {
       );
       setResults(runResult.results);
       setPersisted(runResult.persisted);
+      setExplanations({});
+      setOpenExplain({});
+      if (runResult.persisted) {
+        try {
+          const stored = await apiFetch<StoredMatch[]>(
+            `/requirements/${selected}/matches`,
+          );
+          const map: Record<string, string> = {};
+          for (const row of stored) map[row.listing_id] = row.id;
+          setStoredMap(map);
+        } catch {
+          setStoredMap({});
+        }
+      } else {
+        setStoredMap({});
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Matching failed");
     } finally {
@@ -58,13 +140,35 @@ function MatchesContent() {
     }
   }, [selected, persist]);
 
+  const explain = useCallback(async (listingId: string) => {
+    const matchId = storedMap[listingId];
+    if (!matchId) return;
+    if (explanations[listingId]) {
+      setOpenExplain((prev) => ({ ...prev, [listingId]: !prev[listingId] }));
+      return;
+    }
+    setExplainBusy(listingId);
+    setError(null);
+    try {
+      const explanation = await apiFetch<Explanation>(`/explain/match/${matchId}`);
+      setExplanations((prev) => ({ ...prev, [listingId]: explanation }));
+      setOpenExplain((prev) => ({ ...prev, [listingId]: true }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Explanation failed");
+    } finally {
+      setExplainBusy(null);
+    }
+  }, [storedMap, explanations]);
+
   return (
     <main className="container">
       <header>
         <h1>Matches</h1>
         <p>
           Ranked active listings for a requirement. Scores are deterministic
-          decision-support signals, not guarantees of suitability.
+          decision-support signals, not guarantees of suitability. Save a
+          snapshot to get the per-criterion &ldquo;Why this match?&rdquo;
+          explanation later.
         </p>
       </header>
 
@@ -154,6 +258,33 @@ function MatchesContent() {
                   <li key={warning}>{warning}</li>
                 ))}
               </ul>
+            )}
+
+            {storedMap[candidate.listing_id] && (
+              <div className="explain-block">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => explain(candidate.listing_id)}
+                  disabled={explainBusy === candidate.listing_id}
+                >
+                  {explainBusy === candidate.listing_id
+                    ? "Explaining..."
+                    : openExplain[candidate.listing_id]
+                      ? "Hide 'Why this match?'"
+                      : "Why this match?"}
+                </button>
+                {openExplain[candidate.listing_id] &&
+                  explanations[candidate.listing_id] && (
+                    <ExplainPanel explanation={explanations[candidate.listing_id]} />
+                  )}
+              </div>
+            )}
+            {!storedMap[candidate.listing_id] && (
+              <p className="muted small-note">
+                Save and rerun the snapshot ({persisted ? "rerun with save" : "tick “Save snapshot”"})
+                to get the &ldquo;Why this match?&rdquo; explanation.
+              </p>
             )}
           </div>
         ))}

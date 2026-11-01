@@ -15,9 +15,13 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.constants import RECOVERY_ROUTES, VERIFICATION_STATUSES, UNITS
 from app.db.session import Base
+
+from .organization import Organization
+from .user import User
 
 
 class Offer(Base):
@@ -55,6 +59,9 @@ class Offer(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
+    listing = relationship("WasteListing", lazy="joined")
+    requirement = relationship("MaterialRequirement", lazy="joined")
+
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -87,10 +94,18 @@ class Transaction(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
+    offer = relationship("Offer", lazy="joined")
+
 
 class RecoveryRecord(Base):
     __tablename__ = "recovery_records"
-    __table_args__ = (CheckConstraint("recovered_quantity >= 0", name="ck_recovery_quantity"),)
+    __table_args__ = (
+        CheckConstraint("recovered_quantity >= 0", name="ck_recovery_quantity"),
+        CheckConstraint(
+            "verification_status IN ('unverified', 'verified')",
+            name="ck_recovery_verification_status",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     transaction_id: Mapped[uuid.UUID] = mapped_column(
@@ -104,6 +119,22 @@ class RecoveryRecord(Base):
         JSONB, nullable=False, default=dict, server_default="{}"
     )
     calculation_notes: Mapped[str | None] = mapped_column(Text)
+    # Legacy counters: "user-reported" when the recorder filled it in,
+    # "verified" only after an authorized reviewer confirms it (Phase 12:
+    # distinguish estimated / user-reported / verified metrics).
+    verification_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="unverified", server_default="unverified"
+    )
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    transaction = relationship("Transaction", lazy="joined")
+
+    estimates: Mapped[list["ImpactEstimate"]] = relationship(
+        "ImpactEstimate", lazy="selectin"
     )

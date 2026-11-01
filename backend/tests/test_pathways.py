@@ -12,7 +12,6 @@ from app.main import app
 from app.models import WasteListing
 from app.services.pathways import templates
 from app.services.pathways.engine import (
-    InfeasibleListing,
     WEIGHT_PROFILES,
     evaluate_pathways,
 )
@@ -153,21 +152,21 @@ def test_sensitivity_reported():
 
 def test_infeasible_listing_raises_before_ranking():
     with SessionLocal() as db:
-        query = db.query(WasteListing).filter(
-            WasteListing.category == "chemicals", WasteListing.status == "active"
+        listing = (
+            db.query(WasteListing)
+            .filter(WasteListing.category == "chemicals", WasteListing.status == "active")
+            .first()
         )
-        listing = query.first()
         if listing is None:
-            pytest.skip("no active chemicals listing in seed")
+            pytest.skip("no active chemicals listing available")
         result = evaluate_pathways(db, listing_id=listing.id)
-        # recycle is always feasible, so a total rejection is impossible via
-        # this engine; but an unknown category must raise.
-        try:
-            listing.category = "nonexistent_category_xyz"
-            with pytest.raises(InfeasibleListing):
-                evaluate_pathways(db, listing_id=listing.id)
-        finally:
-            db.rollback()
+    # Hard safety/processing rules run BEFORE scoring: a chemicals listing
+    # can only ever rank the recycle pathway — the others are rejected with
+    # explicit reasons, never rescued by high scores.
+    assert [candidate["pathway"] for candidate in result["ranked"]] == ["recycle"]
+    rejected = {entry["pathway"]: entry["reason"] for entry in result["rejected"]}
+    assert {"reuse", "upcycle", "remanufacture"} <= set(rejected)
+    assert "safety/processing rules" in rejected["reuse"]
 
 
 # --- API ----------------------------------------------------------------------

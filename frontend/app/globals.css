@@ -596,3 +596,79 @@ code {
   font-size: 0.85rem;
   max-width: 480px;
 }
+
+/* Explainable AI panels (matching / pathways / ESG) */
+.explanation-panel {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-top: 0.75rem;
+  background: #fafcf9;
+}
+
+.explanation-panel details {
+  margin: 0.5rem 0;
+}
+
+.explanation-panel details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.contribution-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.contribution-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.88rem;
+  flex-wrap: wrap;
+}
+
+.contribution-feature {
+  min-width: 14rem;
+  font-weight: 600;
+}
+
+.contribution-bar {
+  flex: 1;
+  min-width: 6rem;
+  max-width: 16rem;
+  height: 8px;
+  background: #eceff1;
+  border-radius: 999px;
+  overflow: hidden;
+  display: inline-block;
+}
+
+.contribution-bar .bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+}
+
+.contribution-bar .bar-positive {
+  background: var(--accent);
+}
+
+.contribution-bar .bar-negative {
+  background: var(--error);
+}
+
+.contribution-value {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.contribution-detail {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+}

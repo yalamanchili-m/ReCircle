@@ -21,4 +21,15 @@ MATCH_STATUSES = ("suggested", "viewed", "interested", "dismissed", "converted")
 
 ORGANIZATION_TYPES = ("generator", "buyer", "recycler", "both", "admin")
 
+RECOVERY_ROUTES = (
+    "reuse",
+    "recycle",
+    "compost",
+    "energy_recovery",
+    "landfill",
+    "other",
+)
+
+VERIFICATION_STATUSES = ("unverified", "verified")
+
 ROLES = ("generator", "buyer", "admin")

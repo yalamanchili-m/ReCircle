@@ -3,16 +3,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
     ai,
+    analytics,
     auth,
     dashboard,
+    esg,
+    explain,
     graph,
     health,
+    impact,
     listings,
     marketplace,
     organizations,
     pathways,
     requirements,
     symbiosis,
+    trade,
 )
 from app.core.config import get_settings
 from app.core.error_handlers import register_exception_handlers
@@ -40,5 +45,10 @@ app.include_router(ai.router, prefix=settings.api_prefix, tags=["ai"])
 app.include_router(graph.router, prefix=settings.api_prefix, tags=["graph"])
 app.include_router(symbiosis.router, prefix=settings.api_prefix, tags=["symbiosis"])
 app.include_router(pathways.router, prefix=settings.api_prefix, tags=["pathways"])
+app.include_router(trade.router, prefix=settings.api_prefix, tags=["trade"])
+app.include_router(esg.router, prefix=settings.api_prefix, tags=["esg"])
+app.include_router(impact.router, prefix=settings.api_prefix, tags=["impact"])
+app.include_router(explain.router, prefix=settings.api_prefix, tags=["explain"])
+app.include_router(analytics.router, prefix=settings.api_prefix, tags=["analytics"])
 
 register_exception_handlers(app)

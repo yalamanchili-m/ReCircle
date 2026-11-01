@@ -12,10 +12,12 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.constants import REQUIREMENT_STATUSES, UNITS
 from app.db.session import Base
+
+from .organization import Organization
 
 
 class MaterialRequirement(Base):
@@ -59,6 +61,8 @@ class MaterialRequirement(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    organization: Mapped[Organization] = relationship(lazy="joined")
 
     def __init__(self, **kwargs):
         if "unit" in kwargs and kwargs["unit"] not in UNITS:

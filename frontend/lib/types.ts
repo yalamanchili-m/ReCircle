@@ -148,6 +148,196 @@ export interface MatchRunResponse {
   results: MatchCandidate[];
 }
 
+export interface ExplanationContribution {
+  feature: string;
+  value: number;
+  unit: string;
+  direction: string;
+  share_of_signal: number;
+  detail: string | null;
+}
+
+export interface Explanation {
+  explanation_schema_version: string;
+  subject_type: string;
+  subject_version: string;
+  method: string;
+  method_note: string;
+  inputs: Record<string, unknown>;
+  contributions: ExplanationContribution[];
+  caveats: string[];
+  causation_note: string;
+  data_coverage: Record<string, unknown>;
+  sources: { type: string; version: string | null; source: string | null }[];
+  generated_at: string;
+  rejected?: boolean;
+}
+
+export interface ExplainStatusResponse {
+  explanation_schema_version: string;
+  predictive_models_deployed: boolean;
+  shap: { status: string; reason: string };
+  lime: { status: string; reason: string };
+  note: string;
+  limitations: string[];
+}
+
+export interface PathwayCandidate {
+  pathway: string;
+  label: string;
+  steps: string[];
+  transport_legs: number;
+  raw_values: Record<string, number | null>;
+  normalized_values: Record<string, number>;
+  criterion_weights: Record<string, number>;
+  weighted_contributions: Record<string, number>;
+  score: number;
+  missing_criteria: string[];
+}
+
+export interface PathwayEvaluation {
+  listing_id: string;
+  category: string;
+  profile: string;
+  profiles_available: string[];
+  ranked: PathwayCandidate[];
+  rejected: { pathway: string; reason: string }[];
+  assumptions: string[];
+  missing_data: Record<string, string>;
+  sensitivity: {
+    criterion: string;
+    weight: number;
+    score_gap: number;
+    perturbation: number;
+    max_perturbation_effect: number;
+    top_rank_stable: boolean;
+  }[];
+  demand_count: number;
+  destination_region: string | null;
+  versions: {
+    optimizer: string;
+    templates: string;
+    taxonomy: string;
+    criterion_direction: Record<string, string>;
+  };
+  runtime_ms: number;
+  generated_at: string;
+}
+
+export interface StoredMatch {
+  id: string;
+  requirement_id: string;
+  listing_id: string;
+  listing_title: string;
+  organization_name: string;
+  score: number;
+  score_breakdown: Record<string, number>;
+  explanation: string;
+  status: string;
+  generated_at: string;
+}
+
+export interface MarketplaceMetrics {
+  version: string;
+  period: { from: string; to: string; basis: string };
+  filters: { category: string | null; industry: string | null };
+  metrics: {
+    listings: Record<string, number>;
+    supply_demand_rows: {
+      category: string;
+      active_listings: number;
+      active_listings_tonnes: number;
+      non_mass_listings_excluded: number;
+      active_requirements: number;
+      active_requirements_min_tonnes: number;
+    }[];
+    geography: {
+      available: boolean;
+      coverage: number;
+      reason?: string;
+      rows: { region: string; active_listings: number }[];
+    };
+    match_activity: {
+      stored_matches: number;
+      offers_created: number;
+      offers_accepted: number;
+      transactions_agreed: number;
+      transactions_completed: number;
+    };
+    pathway_rows: {
+      category: string;
+      feasible_pathway_count: number;
+      feasible_pathways: string[];
+    }[];
+    time_series: {
+      available: boolean;
+      granularity: string;
+      reason?: string;
+      note?: string;
+      rows: {
+        month: string;
+        listings_created: number;
+        requirements_created: number;
+        transactions_completed: number;
+      }[];
+    };
+    warnings: string[];
+  };
+  limitations: string[];
+}
+
+export interface KMeansCluster {
+  cluster: number;
+  size: number;
+  share_of_sample: number;
+  dominant_category: string;
+  dominant_category_share: number;
+  label: string;
+}
+
+export interface KMeansResponse {
+  subject: string;
+  insufficient_data: boolean;
+  empty_state?: string;
+  run_id: string;
+  result_version: string;
+  feature_schema_version: string;
+  feature_schema: {
+    feature: string;
+    kind: string;
+    weight?: number;
+    normalization?: string;
+  }[];
+  k?: number;
+  k_requested?: number | null;
+  k_default_rule?: string;
+  sample_count: number;
+  min_sample_threshold?: number;
+  stats?: {
+    clusters: KMeansCluster[];
+    inertia: number;
+    iterations: number;
+    silhouette: number | null;
+    silhouette_note: string;
+    centroid_highlights: {
+      feature: string;
+      centroid_delta: number;
+      runner_up: string;
+      runner_up_delta: number;
+    }[];
+  };
+  sampling_summary: {
+    sample_count: number;
+    min_sample_threshold: number;
+    sufficient: boolean;
+    excluded_rows: number;
+    basis: string;
+    warnings: string[];
+  };
+  disclaimers: string[];
+  versions: { algorithm: string; feature_schema: string };
+}
+
 export interface DashboardSummary {
   active_listings: number;
   quantity_by_unit: { unit: string; total: number; listing_count: number }[];
@@ -331,4 +521,111 @@ export interface SymbiosisEvaluationResponse {
   total: number;
   cases: Record<string, unknown>[];
   disclaimer: string;
+}
+
+export interface EsgUnitRow {
+  unit: string;
+  total: number;
+  record_count: number;
+  basis: string;
+}
+
+export interface EsgEstimateDetail {
+  id: string;
+  supported: boolean;
+  unsupported_reason: string | null;
+  avoided_co2e_kg: number | null;
+  landfill_diverted_kg: number | null;
+  quantity_tonnes: number | null;
+  method: string;
+  factor_catalog_version: string;
+  factor_source: string;
+  baseline_reference: string;
+  assumptions: {
+    items?: string[];
+    limitations?: string[];
+    formula_terms?: Record<string, unknown>[];
+    avoided_co2e_kg_low?: number | null;
+    avoided_co2e_kg_high?: number | null;
+    uncertainty_basis?: string | null;
+  };
+  created_at: string;
+}
+
+export interface EsgRecord {
+  recovery_record_id: string;
+  transaction_id: string;
+  listing_id: string;
+  listing_title: string;
+  category: string;
+  seller_organization: string;
+  buyer_organization: string;
+  recovered_quantity: number;
+  unit: string;
+  recovery_route: string;
+  verification_status: string;
+  recorded_date: string | null;
+  estimate: EsgEstimateDetail | null;
+  user_notes: string | null;
+}
+
+export interface EsgDashboard {
+  version: string;
+  period: { from: string | null; to: string | null; basis: string };
+  coverage: {
+    recovery_record_count: number;
+    verified_count: number;
+    unverified_count: number;
+    records_with_supported_estimate: number;
+    records_without_supported_estimate: number;
+    first_recorded_date: string | null;
+    last_recorded_date: string | null;
+  };
+  metrics: {
+    recovered_by_unit: EsgUnitRow[];
+    mass_normalized: {
+      tonnes_recovered: number;
+      record_count: number;
+      excluded_non_mass_records: number;
+      excluded_reason: string | null;
+    };
+    landfill_diverted: {
+      tonnes_estimate: number;
+      kg_estimate: number;
+      basis: string;
+      record_count: number;
+    };
+    avoided_emissions: {
+      kg_co2e_estimate: number;
+      tonnes_estimate: number;
+      basis: string;
+      method: string;
+      factor_catalog_version: string;
+      factor_source: string;
+      baseline_reference: string;
+      uncertainty: {
+        band_low_kg: number;
+        band_high_kg: number;
+        rows_with_band: number;
+        rows_without_band: number;
+        basis: string | null;
+      } | null;
+      unsupported_records: { recovery_record_id: string; reason: string }[];
+    };
+    recovery_route_breakdown: {
+      recovery_route: string;
+      record_count: number;
+      tonnes_recovered: number;
+    }[];
+    verification: { verified_count: number; unverified_count: number; note: string };
+  };
+  metric_states: Record<string, string[]>;
+  green_credit: {
+    points: number;
+    formula: string;
+    basis: string;
+    disclaimers: string[];
+  };
+  records: EsgRecord[];
+  limitations: string[];
 }
