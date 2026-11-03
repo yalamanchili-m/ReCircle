@@ -207,14 +207,90 @@ Q3 = Decimal("0.001")
 Q6 = Decimal("0.000001")
 
 
-def _row(category: str, pathway: str) -> FactorRow | None:
-    return CATALOG.get((category, pathway))
+def _row(category: str, pathway: str, catalog: dict | None = None) -> FactorRow | None:
+    return (CATALOG if catalog is None else catalog).get((category, pathway))
+
+
+def active_catalog(db: Session) -> dict:
+    """Active factor set: DB-ingested external rows first, curated fallback.
+
+    Phase 15 ingestion activates validated external factor sets via
+    ``ExternalWarmFactor`` (exactly one active row per (category, pathway) —
+    partial unique index). When no ingested set is active, the curated
+    platform approximation catalog stays the honest fallback.
+    """
+    from app.models import ExternalWarmFactor
+
+    rows = db.scalars(
+        select(ExternalWarmFactor).where(ExternalWarmFactor.is_active.is_(True))
+    ).all()
+    if not rows:
+        return {
+            "catalog": CATALOG,
+            "catalog_version": FACTOR_CATALOG_VERSION,
+            "factor_source": FACTOR_SOURCE,
+            "baseline_reference": BASELINE_REFERENCE,
+            "origin": "curated_approximation",
+        }
+    catalog = {
+        (row.category, row.pathway): FactorRow(
+            category=row.category,
+            pathway=row.pathway,
+            value=float(row.value),
+            uncertainty_ratio=float(row.uncertainty_ratio),
+            note=row.note or "",
+        )
+        for row in rows
+    }
+    return {
+        "catalog": catalog,
+        "catalog_version": rows[0].catalog_version,
+        "factor_source": rows[0].factor_source,
+        "baseline_reference": BASELINE_REFERENCE,
+        "origin": "ingested_external",
+    }
+
+
+def assumption_texts(origin: str) -> list[str]:
+    """Provenance-aware assumption list (same length for any origin)."""
+    items = list(ASSUMPTIONS)
+    if origin == "ingested_external":
+        items[-1] = (
+            "Factor values come from an ingested external source "
+            "(see factor_source for the run-level provenance recorded at "
+            "import); the active set is exactly one validated ingested "
+            "catalog version."
+        )
+    return items
+
+
+def limitation_texts(origin: str) -> list[str]:
+    """Provenance-aware limitation list (same length for any origin)."""
+    items = list(LIMITATIONS)
+    if origin == "ingested_external":
+        items[0] = (
+            "Factor values are ingested external data; verify that the "
+            "staged file was faithfully extracted from the upstream source "
+            "(the encrypted EPA workbook cannot be parsed directly)."
+        )
+    return items
 
 
 def compute_estimate(
-    category: str, route: str, quantity: Decimal, unit: str
+    category: str,
+    route: str,
+    quantity: Decimal,
+    unit: str,
+    catalog: dict | None = None,
+    factor_source: str | None = None,
 ) -> dict:
-    """Deterministic pure computation. Returns estimate fields without persisting."""
+    """Deterministic pure computation. Returns estimate fields without persisting.
+
+    ``catalog``/``factor_source`` defaults resolve to the curated module
+    catalog; ingestion passes the active ingested set explicitly.
+    """
+    catalog = CATALOG if catalog is None else catalog
+    source_label = FACTOR_SOURCE if factor_source is None else factor_source
     if route == BASELINE_PATHWAY:
         return {
             "supported": True,
@@ -231,8 +307,8 @@ def compute_estimate(
             "reason": "Landfill is the baseline; nothing is avoided by construction",
         }
 
-    baseline = _row(category, BASELINE_PATHWAY)
-    factor_route = None if route == "other" else _row(category, route)
+    baseline = _row(category, BASELINE_PATHWAY, catalog)
+    factor_route = None if route == "other" else _row(category, route, catalog)
 
     supported = True
     reason = None
@@ -301,14 +377,14 @@ def compute_estimate(
                 "term": f"baseline ({BASELINE_PATHWAY}) intensity",
                 "factor": float(baseline.value),
                 "unit": FACTOR_UNIT,
-                "source": FACTOR_SOURCE,
+                "source": source_label,
                 "signed_contribution_kg": float(base_term),
             },
             {
                 "term": f"route ({route}) intensity",
                 "factor": float(factor_route.value),
                 "unit": FACTOR_UNIT,
-                "source": FACTOR_SOURCE,
+                "source": source_label,
                 "signed_contribution_kg": float(-route_term),
             },
         ],
@@ -324,6 +400,8 @@ def estimate_and_persist(
     can never double-count. Safe to call again after factor updates.
     """
     from app.services import carbon as carbon_module
+
+    active = carbon_module.active_catalog(db)
 
     existing = db.scalars(
         select(ImpactEstimate).where(
@@ -341,6 +419,8 @@ def estimate_and_persist(
         recovery_record.recovery_route or "other",
         recovery_record.recovered_quantity,
         recovery_record.unit,
+        catalog=active["catalog"],
+        factor_source=active["factor_source"],
     )
     estimate = ImpactEstimate(
         recovery_record_id=recovery_record.id,
@@ -353,12 +433,12 @@ def estimate_and_persist(
         avoided_co2e_kg=computed["avoided_co2e_kg"],
         landfill_diverted_kg=computed["landfill_diverted_kg"],
         method=METHOD,
-        factor_catalog_version=FACTOR_CATALOG_VERSION,
-        factor_source=FACTOR_SOURCE,
-        baseline_reference=BASELINE_REFERENCE,
+        factor_catalog_version=active["catalog_version"],
+        factor_source=active["factor_source"],
+        baseline_reference=active["baseline_reference"],
         assumptions={
-            "items": ASSUMPTIONS,
-            "limitations": LIMITATIONS,
+            "items": assumption_texts(active["origin"]),
+            "limitations": limitation_texts(active["origin"]),
             "formula_terms": computed.get("formula_terms", []),
             "avoided_co2e_kg_low": (
                 float(computed["avoided_co2e_kg_low"])
@@ -436,6 +516,7 @@ def validate_factor_catalog(rows: list[dict]) -> dict:
 
     return {
         "accepted_count": len(accepted),
+        "accepted": accepted,
         "rejected_count": len(rejected),
         "rejected": rejected,
         "missing_baseline_categories": missing_baseline,
@@ -458,6 +539,8 @@ def recompute_all_estimates(db: Session) -> dict:
     from sqlalchemy import func
 
     from app.models import Offer, Transaction, WasteListing
+
+    active = active_catalog(db)
 
     chain = (
         select(ImpactEstimate, WasteListing.category)
@@ -492,7 +575,8 @@ def recompute_all_estimates(db: Session) -> dict:
             select(func.count()).select_from(RecoveryRecord)
         )
         or 0,
-        "catalog_version": FACTOR_CATALOG_VERSION,
+        "catalog_version": active["catalog_version"],
+        "factor_origin": active["origin"],
         "method": METHOD,
     }
 

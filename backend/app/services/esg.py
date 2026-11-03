@@ -141,6 +141,7 @@ def build_dashboard(
     period_to: date_type | None = None,
 ) -> dict:
     rows = scoped_recovery_rows(db, user, period_from, period_to)
+    provenance = carbon.active_catalog(db)
     recorded_dates = [
         row["recorded_at"].date() for row in rows if row["recorded_at"] is not None
     ]
@@ -285,9 +286,9 @@ def build_dashboard(
                 "tonnes_estimate": float(kg_co2e_total / Decimal("1000")),
                 "basis": "estimated (factor-based)",
                 "method": carbon.METHOD,
-                "factor_catalog_version": carbon.FACTOR_CATALOG_VERSION,
-                "factor_source": carbon.FACTOR_SOURCE,
-                "baseline_reference": carbon.BASELINE_REFERENCE,
+                "factor_catalog_version": provenance["catalog_version"],
+                "factor_source": provenance["factor_source"],
+                "baseline_reference": provenance["baseline_reference"],
                 "uncertainty": (
                     {
                         "band_low_kg": float(band_low_total),
@@ -326,7 +327,8 @@ def build_dashboard(
             "disclaimers": carbon.CREDIT_DISCLAIMERS,
         },
         "records": records_payload,
-        "limitations": carbon.LIMITATIONS,
+        "factor_origin": provenance["origin"],
+        "limitations": carbon.limitation_texts(provenance["origin"]),
     }
 
 

@@ -135,10 +135,24 @@ def test_superseded_estimates_never_double_count():
     co2_before = baseline["metrics"]["avoided_emissions"]["kg_co2e_estimate"]
 
     with SessionLocal() as db:
+        from app.models import Offer, Transaction, WasteListing
+
         record = db.scalar(select(RecoveryRecord))
+        # Recompute with the record's own listing category (admin recompute
+        # uses the trade chain; a hardcoded category here would vary the
+        # result depending on row order).
+        category = (
+            db.scalar(
+                select(WasteListing.category)
+                .join(Offer, Offer.listing_id == WasteListing.id)
+                .join(Transaction, Transaction.offer_id == Offer.id)
+                .where(Transaction.id == record.transaction_id)
+            )
+            or "other"
+        )
         # Simulate a factor-catalog update: a fresh estimate recomputation
         # must demote the previous current row and never add to totals.
-        estimate = carbon.estimate_and_persist(db, record, "paper_cardboard")
+        estimate = carbon.estimate_and_persist(db, record, category)
         db.commit()
         assert estimate.is_current is True
         count_current = db.scalar(

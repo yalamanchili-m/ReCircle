@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     regulation_fetch_timeout_seconds: int = 15
     regulation_max_items_per_source: int = 25
 
+    # External data ingestion (Phase 15) is staged local-file import only:
+    # admins execute file imports in explicit API calls. Size caps keep
+    # imported content bounded; CSV text is parsed, never executed.
+    data_ingestion_max_file_mb: int = 50
+
+    # ERP integration boundary (Phase 16): staging-file size/row caps for
+    # preview and confirm, matching the governance of Phase 15 imports.
+    erp_max_file_mb: int = 10
+    erp_max_rows: int = 50_000
+    erp_export_max_rows: int = 100_000
+
 
 @lru_cache
 def get_settings() -> Settings:

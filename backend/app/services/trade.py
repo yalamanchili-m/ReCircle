@@ -288,7 +288,7 @@ def record_recovery(
         details={
             "transaction_id": str(transaction.id),
             "estimate_supported": estimate.supported,
-            "factor_catalog_version": carbon.FACTOR_CATALOG_VERSION,
+            "factor_catalog_version": estimate.factor_catalog_version,
         },
     )
     return recovery

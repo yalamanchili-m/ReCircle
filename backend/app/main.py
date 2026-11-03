@@ -7,6 +7,8 @@ from app.api.routes import (
     assistant,
     auth,
     dashboard,
+    data_ingestion,
+    erp,
     esg,
     explain,
     graph,
@@ -54,5 +56,7 @@ app.include_router(explain.router, prefix=settings.api_prefix, tags=["explain"])
 app.include_router(analytics.router, prefix=settings.api_prefix, tags=["analytics"])
 app.include_router(regulation.router, prefix=settings.api_prefix, tags=["regulation"])
 app.include_router(assistant.router, prefix=settings.api_prefix, tags=["assistant"])
+app.include_router(data_ingestion.router, prefix=settings.api_prefix, tags=["data_ingestion"])
+app.include_router(erp.router, prefix=settings.api_prefix, tags=["erp"])
 
 register_exception_handlers(app)

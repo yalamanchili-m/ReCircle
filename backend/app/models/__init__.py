@@ -1,6 +1,14 @@
 """App models. Importing this package registers all models on Base.metadata."""
 
 from .assistant import AssistantRun, KnowledgeChunk
+from .data_ingestion import (
+    ExternalDataRecord,
+    ExternalDataSource,
+    ExternalWarmFactor,
+    IngestionRun,
+    RawIngestionFile,
+)
+from .erp import ErpRecord, ErpRun
 from .impact import ImpactEstimate
 from .material_requirement import MaterialRequirement
 from .match import Match
@@ -16,8 +24,15 @@ __all__ = [
     "AnalyticsRun",
     "AssistantRun",
     "AuditLog",
+    "ExternalDataRecord",
+    "ExternalDataSource",
+    "ExternalWarmFactor",
+    "ErpRecord",
+    "ErpRun",
     "GraphSyncRun",
     "ImpactEstimate",
+    "IngestionRun",
+    "RawIngestionFile",
     "KnowledgeChunk",
     "SymbiosisRun",
     "MaterialPassport",

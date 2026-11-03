@@ -14,15 +14,23 @@ def list_factors(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Factor catalog with full provenance (blueprint: factors/provenance)."""
+    """Factor catalog with full provenance (blueprint: factors/provenance).
+
+    Serves whichever catalog is active: a validated ingested external set
+    (Phase 15) when present, otherwise the curated approximation fallback.
+    """
+    active = carbon.active_catalog(db)
+    db.commit()
+    ingested = active["origin"] == "ingested_external"
     return {
-        "factor_catalog_version": carbon.FACTOR_CATALOG_VERSION,
+        "factor_catalog_version": active["catalog_version"],
         "factor_unit": carbon.FACTOR_UNIT,
-        "factor_source": carbon.FACTOR_SOURCE,
-        "baseline_reference": carbon.BASELINE_REFERENCE,
+        "factor_source": active["factor_source"],
+        "baseline_reference": active["baseline_reference"],
         "method": carbon.METHOD,
         "supported_units": sorted(carbon.MASS_UNIT_TO_KG.keys()),
         "baseline_pathway": carbon.BASELINE_PATHWAY,
+        "factor_origin": active["origin"],
         "rows": [
             {
                 "category": row.category,
@@ -32,13 +40,18 @@ def list_factors(
                 "note": row.note,
                 "is_baseline": row.pathway == carbon.BASELINE_PATHWAY,
             }
-            for row in sorted(carbon.CATALOG.values(), key=lambda r: (r.category, r.pathway))
+            for row in sorted(active["catalog"].values(), key=lambda r: (r.category, r.pathway))
         ],
-        "limitations": carbon.LIMITATIONS,
+        "limitations": carbon.limitation_texts(active["origin"]),
         "disclaimer": (
-            "Curated platform approximation values pending EPA WARM v15 "
-            "ingestion (Phase 15); they must not be presented as "
-            "EPA-verified numbers."
+            "Ingested external factor set is active; values trace to "
+            "ingestion runs with recorded provenance."
+            if ingested
+            else (
+                "Curated platform approximation values pending EPA WARM v15 "
+                "ingestion (Phase 15); they must not be presented as "
+                "EPA-verified numbers."
+            )
         ),
     }
 

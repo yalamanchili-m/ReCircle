@@ -10,3 +10,4 @@ pyjwt>=2.9
 httpx>=0.28
 pytest>=8.3
 neo4j>=5.28
+python-multipart>=0.0.20
